@@ -43,11 +43,14 @@ const exportPptxBtn = document.getElementById('export-pptx-btn');
 const exportPdfBtn = document.getElementById('export-pdf-btn');
 const closeModalBtn = document.getElementById('close-modal-btn');
 const buyCreditsBtn = document.getElementById('buyCreditsBtn');
+const layoutToggle = document.getElementById('layoutToggle');
+const layoutToggleLabel = document.getElementById('layoutToggleLabel');
 
-// Initialize the theme on load
-document.addEventListener('DOMContentLoaded', () => updateTheme(currentBaseColor));
-
-
+// Initialize the theme and interaction listeners on load
+document.addEventListener('DOMContentLoaded', () => {
+    updateTheme(currentBaseColor);
+    setupInteractionListeners();
+});
 
 // ============== AUTHENTICATION LOGIC ==============
 const provider = new firebase.auth.GoogleAuthProvider();
@@ -115,7 +118,7 @@ async function generateCommentWithGemini(imageFile, slideTitle) {
         return null;
     }
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
-    const base64ImageData = await fileToBase64(imageFile, false); // Get just the data
+    const base64ImageData = await fileToBase64(imageFile, false); 
     const userPrompt = `Considerando el título: "${slideTitle}", describe la imagen de esta actividad escolar en un párrafo corto y positivo en español. Enfócate en la colaboración, aprendizaje o diversión.`;
     const payload = { contents: [{ role: "user", parts: [{ text: userPrompt }, { inlineData: { mimeType: imageFile.type, data: base64ImageData } }] }] };
 
@@ -178,7 +181,8 @@ function generarSlides(structure) {
     slides = [];
     for (const grado in structure) {
         for (const actividad in structure[grado]) {
-            const fotos = structure[grado][actividad].sort(() => 0.5 - Math.random()).slice(0, 5);
+            // UPDATED: Limit images to 4
+            const fotos = structure[grado][actividad].sort(() => 0.5 - Math.random()).slice(0, 4);
             if (fotos.length > 0) {
                 slides.push({ 
                     grado, 
@@ -187,7 +191,9 @@ function generarSlides(structure) {
                     aiComment: '', 
                     needsAi: true, 
                     isSelectedForAi: true,
-                    geometry: generateGeometricShapes()
+                    geometry: generateGeometricShapes(),
+                    layoutStyle: 'overlap', // Default layout style
+                    positions: {} // To store custom positions
                 });
             }
         }
@@ -200,7 +206,7 @@ function renderPresentationView() {
         const thumb = document.createElement('div');
         thumb.className = 'sidebar-slide-item';
         thumb.dataset.slideIndex = index;
-        const firstImage = URL.createObjectURL(slide.imagenes[0]);
+        const firstImage = slide.imagenes.length > 0 ? URL.createObjectURL(slide.imagenes[0]) : '';
 
         thumb.innerHTML = `
             <input type="checkbox" class="thumbnail-checkbox" data-slide-index="${index}" ${slide.isSelectedForAi ? 'checked' : ''} ${!slide.needsAi ? 'disabled' : ''}>
@@ -225,6 +231,11 @@ function displaySlide(index) {
     const slide = slides[index];
     if (!slide) return;
 
+    // Update UI controls to match the current slide's state
+    const isOverlap = slide.layoutStyle === 'overlap';
+    layoutToggle.checked = isOverlap;
+    layoutToggleLabel.textContent = isOverlap ? 'Collage Superpuesto' : 'Collage en Cuadrícula';
+
     const slideContent = document.createElement('div');
     slideContent.className = 'main-slide-content';
     
@@ -236,20 +247,20 @@ function displaySlide(index) {
         shapesContainer.appendChild(shapeEl);
     });
 
-    slideContent.innerHTML = `
+    const foregroundContainer = document.createElement('div');
+    foregroundContainer.className = 'slide-foreground';
+    
+    const collageHTML = generateCollageLayout(slide, index);
+
+    foregroundContainer.innerHTML = `
         <h2 contenteditable="true" data-slide-index="${index}">${slide.actividad} – ${slide.grado}</h2>
-        <div class="imagenes">
-            ${slide.imagenes.map((file, imgIndex) => `
-                <div class="image-container">
-                    <img src="${URL.createObjectURL(file)}" alt="Imagen de ${slide.actividad}">
-                    <button class="delete-image-btn" data-slide-index="${index}" data-img-index="${imgIndex}">
-                        <span class="icon" data-feather="x"></span>
-                    </button>
-                </div>`).join('')}
-        </div>
+        ${collageHTML}
         <div class="ai-comment">${slide.aiComment}</div>
     `;
-    slideContent.prepend(shapesContainer);
+
+    slideContent.appendChild(shapesContainer);
+    slideContent.appendChild(foregroundContainer);
+
     mainSlideView.innerHTML = ''; 
     mainSlideView.appendChild(slideContent);
     feather.replace();
@@ -279,25 +290,6 @@ slideThumbnailsContainer.addEventListener('change', e => {
     }
 });
 
-mainSlideView.addEventListener('click', e => {
-    const deleteBtn = e.target.closest('.delete-image-btn');
-    if(deleteBtn) {
-        const slideIndex = parseInt(deleteBtn.dataset.slideIndex, 10);
-        const imgIndex = parseInt(deleteBtn.dataset.imgIndex, 10);
-        
-        slides[slideIndex].imagenes.splice(imgIndex, 1);
-        
-        if (slides[slideIndex].imagenes.length === 0) {
-            slides.splice(slideIndex, 1);
-            activeSlideIndex = Math.max(0, slideIndex - 1);
-            if (slides.length === 0) resetApp(); else renderPresentationView();
-        } else {
-            displaySlide(slideIndex);
-            if (imgIndex === 0) renderPresentationView();
-        }
-    }
-});
-
 mainSlideView.addEventListener('focusout', e => {
     if (e.target.tagName === 'H2') {
         const slideIndex = parseInt(e.target.dataset.slideIndex, 10);
@@ -319,6 +311,21 @@ selectAllCheckbox.addEventListener('change', e => {
 themeColorPicker.addEventListener('input', e => {
     updateTheme(e.target.value);
 });
+
+layoutToggle.addEventListener('change', e => {
+    const slide = slides[activeSlideIndex];
+    if (slide) {
+        const isOverlap = e.target.checked;
+        slide.layoutStyle = isOverlap ? 'overlap' : 'grid';
+        slide.positions = {}; // Reset custom positions when changing layout type
+
+        // Update label text for clarity
+        layoutToggleLabel.textContent = isOverlap ? 'Collage Superpuesto' : 'Collage en Cuadrícula';
+
+        displaySlide(activeSlideIndex);
+    }
+});
+
 
 restyleBtn.addEventListener('click', () => {
     if (slides[activeSlideIndex]) {
@@ -417,17 +424,6 @@ exportPdfBtn.addEventListener('click', async () => {
 
 
 // ============== UTILITY & EXPORT FUNCTIONS ==============
-function getImageDimensions(file) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-            resolve({ width: img.width, height: img.height });
-            URL.revokeObjectURL(img.src); // Clean up memory
-        };
-        img.onerror = reject;
-        img.src = URL.createObjectURL(file);
-    });
-}
 
 function fileToBase64(file, includeMime = true) {
     return new Promise((resolve, reject) => {
@@ -446,19 +442,18 @@ function fileToBase64(file, includeMime = true) {
 
 function generateGeometricShapes() {
     const shapes = [];
-    const shapeCount = Math.floor(Math.random() * 5) + 5; // 5 to 9 shapes
-
+    const shapeCount = Math.floor(Math.random() * 5) + 5;
     for (let i = 0; i < shapeCount; i++) {
-        const size = (Math.random() * 25 + 10) + '%'; // 10% to 35% size
+        const size = (Math.random() * 25 + 10) + '%';
         shapes.push({
             style: {
                 width: size,
                 height: size,
-                top: (Math.random() * 90 - 10) + '%', // -10% to 80%
-                left: (Math.random() * 90 - 10) + '%', // -10% to 80%
+                top: (Math.random() * 90 - 10) + '%',
+                left: (Math.random() * 90 - 10) + '%',
                 transform: `rotate(${Math.random() * 360}deg)`,
                 borderRadius: `${Math.random() * 50}%`,
-                opacity: (Math.random() * 0.3 + 0.1).toFixed(2), // 0.1 to 0.4 opacity
+                opacity: (Math.random() * 0.3 + 0.1).toFixed(2),
                 backgroundColor: i % 2 === 0 ? 'var(--slide-accent1-color)' : 'var(--slide-accent2-color)'
             }
         });
@@ -469,7 +464,6 @@ function generateGeometricShapes() {
 function updateTheme(baseHex) {
     currentBaseColor = baseHex;
     const palette = generateColorPalette(baseHex);
-    
     const root = document.documentElement;
     root.style.setProperty('--slide-bg-color', palette.bg);
     root.style.setProperty('--slide-title-color', palette.title);
@@ -477,189 +471,318 @@ function updateTheme(baseHex) {
     root.style.setProperty('--slide-comment-bg', palette.commentBg);
     root.style.setProperty('--slide-accent1-color', palette.accent1);
     root.style.setProperty('--slide-accent2-color', palette.accent2);
-
-    // Re-render current slide to apply new colors immediately
     if (slides.length > 0) {
         displaySlide(activeSlideIndex);
     }
 }
 
-function generateColorPalette(hex) {
-    const [r, g, b] = hex.match(/\w\w/g).map(x => parseInt(x, 16));
-    const toRgb = (r,g,b,a=1) => `rgba(${r},${g},${b},${a})`;
+// ============== NEW INTERACTION LOGIC (DRAG, PAN, DELETE) ==============
 
-    // Simple algorithm to generate a palette
-    const accent1 = `rgb(${r},${g},${b})`;
-    const accent2 = toRgb(Math.min(255, r + 40), Math.min(255, g + 40), Math.min(255, b + 40));
-    const bg = toRgb(Math.min(255, r + 120), Math.min(255, g + 120), Math.min(255, b + 120), 0.2);
-    const title = toRgb(Math.max(0, r - 80), Math.max(0, g - 80), Math.max(0, b - 80));
-    const text = toRgb(Math.max(0, r - 40), Math.max(0, g - 40), Math.max(0, b - 40));
-    const commentBg = toRgb(255, 255, 255, 0.7);
+let activeDrag = {
+    element: null,
+    isPanning: false,
+    startX: 0,
+    startY: 0,
+    initialLeft: 0,
+    initialTop: 0,
+    initialObjPosX: 50,
+    initialObjPosY: 50
+};
 
-    return {
-        accent1, accent2, bg, title, text, commentBg,
-        // For export functions
-        titleHex: title.replace('rgb(', '#').replace(')', '').split(',').map(c => parseInt(c).toString(16).padStart(2, '0')).join(''),
-        textHex: text.replace('rgb(', '#').replace(')', '').split(',').map(c => parseInt(c).toString(16).padStart(2, '0')).join(''),
-        commentBgHex: 'FFFFFF'
-    };
+function setupInteractionListeners() {
+    mainSlideView.addEventListener('mousedown', onDragStart);
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragEnd);
 }
 
-async function createSlideBackground(slide) {
-    const tempDiv = document.createElement('div');
-    tempDiv.style.width = '1280px';
-    tempDiv.style.height = '720px';
-    tempDiv.style.position = 'absolute';
-    tempDiv.style.left = '-9999px'; 
-    tempDiv.className = 'main-slide-content';
-
-    // Apply current theme colors directly for rendering
-    const palette = generateColorPalette(currentBaseColor);
-    tempDiv.style.backgroundColor = palette.bg;
-
-    const shapesContainer = document.createElement('div');
-    slide.geometry.forEach(shape => {
-        const shapeEl = document.createElement('div');
-        shapeEl.className = 'geo-shape';
-        Object.assign(shapeEl.style, shape.style);
-        // Replace CSS variables with actual colors for canvas rendering
-        if (shapeEl.style.backgroundColor.includes('accent1')) {
-            shapeEl.style.backgroundColor = palette.accent1;
+function onDragStart(e) {
+    const deleteBtn = e.target.closest('.delete-image-btn');
+    if (deleteBtn) {
+        e.stopPropagation(); // Prevent drag from starting
+        const slideIndex = parseInt(deleteBtn.dataset.slideIndex, 10);
+        const imgIndex = parseInt(deleteBtn.dataset.imgIndex, 10);
+        
+        slides[slideIndex].imagenes.splice(imgIndex, 1);
+        delete slides[slideIndex].positions[imgIndex]; // Remove position data as well
+        
+        if (slides[slideIndex].imagenes.length === 0) {
+            slides.splice(slideIndex, 1);
+            activeSlideIndex = Math.max(0, slideIndex - 1);
+            if (slides.length === 0) resetApp(); else renderPresentationView();
         } else {
-            shapeEl.style.backgroundColor = palette.accent2;
+            displaySlide(slideIndex);
+            if (imgIndex === 0) renderPresentationView();
         }
-        shapesContainer.appendChild(shapeEl);
-    });
-    tempDiv.appendChild(shapesContainer);
+        return;
+    }
 
-    document.body.appendChild(tempDiv);
+    const imageContainer = e.target.closest('.image-container');
+    if (!imageContainer) return;
+
+    if (e.target.tagName === 'IMG') {
+        e.preventDefault();
+        activeDrag.isPanning = true;
+        activeDrag.element = e.target;
+        
+        const computedStyle = window.getComputedStyle(e.target);
+        const [x, y] = computedStyle.objectPosition.split(' ').map(v => parseFloat(v));
+        activeDrag.initialObjPosX = x;
+        activeDrag.initialObjPosY = y;
+    } else {
+        // Only allow dragging the container in 'overlap' mode
+        if (slides[activeSlideIndex].layoutStyle !== 'overlap') return;
+        
+        e.preventDefault();
+        activeDrag.isPanning = false;
+        activeDrag.element = imageContainer;
+
+        const computedStyle = window.getComputedStyle(imageContainer);
+        activeDrag.initialLeft = parseFloat(computedStyle.left);
+        activeDrag.initialTop = parseFloat(computedStyle.top);
+        imageContainer.classList.add('dragging');
+    }
     
-    const canvas = await html2canvas(tempDiv, {
-        useCORS: true,
-        backgroundColor: null
-    });
-    const dataUrl = canvas.toDataURL('image/png');
-    document.body.removeChild(tempDiv);
-    return dataUrl;
+    activeDrag.startX = e.clientX;
+    activeDrag.startY = e.clientY;
+}
+
+function onDragMove(e) {
+    if (!activeDrag.element) return;
+    e.preventDefault();
+
+    const deltaX = e.clientX - activeDrag.startX;
+    const deltaY = e.clientY - activeDrag.startY;
+
+    if (activeDrag.isPanning) {
+        const img = activeDrag.element;
+        const container = img.parentElement;
+        
+        const imgRatio = img.naturalWidth / img.naturalHeight;
+        const containerRatio = container.clientWidth / container.clientHeight;
+        
+        let imgDisplayWidth, imgDisplayHeight;
+        if (imgRatio > containerRatio) {
+            imgDisplayHeight = container.clientHeight;
+            imgDisplayWidth = imgDisplayHeight * imgRatio;
+        } else {
+            imgDisplayWidth = container.clientWidth;
+            imgDisplayHeight = imgDisplayWidth / imgRatio;
+        }
+
+        const panRangeX = imgDisplayWidth - container.clientWidth;
+        const panRangeY = imgDisplayHeight - container.clientHeight;
+        
+        let newX = activeDrag.initialObjPosX;
+        if (panRangeX > 0) {
+            const moveX = (deltaX / panRangeX) * 100;
+            newX = activeDrag.initialObjPosX - moveX;
+        }
+        
+        let newY = activeDrag.initialObjPosY;
+        if (panRangeY > 0) {
+            const moveY = (deltaY / panRangeY) * 100;
+            newY = activeDrag.initialObjPosY - moveY;
+        }
+        img.style.objectPosition = `${Math.max(0, Math.min(100, newX))}% ${Math.max(0, Math.min(100, newY))}%`;
+    } else {
+        const newLeft = activeDrag.initialLeft + deltaX;
+        const newTop = activeDrag.initialTop + deltaY;
+        activeDrag.element.style.left = `${newLeft}px`;
+        activeDrag.element.style.top = `${newTop}px`;
+    }
+}
+
+function onDragEnd(e) {
+    if (!activeDrag.element) return;
+
+    // Save the final position
+    const slide = slides[activeSlideIndex];
+    const container = activeDrag.element.closest('.image-container');
+    const imgIndex = parseInt(container.dataset.imgIndex);
+
+    if (!slide.positions) slide.positions = {};
+    if (!slide.positions[imgIndex]) slide.positions[imgIndex] = {};
+
+    if (activeDrag.isPanning) {
+        slide.positions[imgIndex].objectPosition = activeDrag.element.style.objectPosition;
+    } else {
+        slide.positions[imgIndex].containerStyle = container.style.cssText;
+        container.classList.remove('dragging');
+    }
+    
+    activeDrag = { element: null, isPanning: false, startX: 0, startY: 0, initialLeft: 0, initialTop: 0, initialObjPosX: 50, initialObjPosY: 50 };
+}
+
+
+// ============== NEW COLLAGE & COLOR LOGIC (UPDATED) ==============
+
+function generateCollageLayout(slide, slideIndex) {
+    const images = slide.imagenes;
+    const layoutStyle = slide.layoutStyle || 'overlap';
+    const layoutClass = `layout-${layoutStyle}`;
+    const countClass = `count-${images.length}`;
+
+    const imageElements = images.map((file, imgIndex) => {
+        const positionData = slide.positions?.[imgIndex] || {};
+        const style = (layoutStyle === 'overlap' && positionData.containerStyle) ? positionData.containerStyle : getCollageStyle(slide.imagenes.length, imgIndex, layoutStyle);
+        const objectPosition = positionData.objectPosition || '50% 50%';
+
+        return `
+        <div class="image-container" data-img-index="${imgIndex}" style="${style}">
+            <img src="${URL.createObjectURL(file)}" alt="Imagen de ${slide.actividad}" style="object-position: ${objectPosition};">
+            <button class="delete-image-btn" data-slide-index="${slideIndex}" data-img-index="${imgIndex}">
+                <span class="icon" data-feather="x"></span>
+            </button>
+        </div>`
+    }).join('');
+
+    return `<div class="imagenes ${layoutClass} ${countClass}">${imageElements}</div>`;
+}
+
+
+function getCollageStyle(count, index, layoutStyle) {
+    if (layoutStyle === 'grid') {
+        // For grid layout, positioning is handled by CSS grid, so no inline styles are needed.
+        return '';
+    }
+    
+    // Fallback to overlap styles
+    switch (count) {
+        case 1:
+            return 'width: 75%; height: 75%; top: 12%; left: 12.5%; border-radius: 16px; z-index: 5;';
+        case 2:
+            switch (index) {
+                case 0: return 'width: 60%; height: 70%; top: 10%; left: 5%; transform: rotate(-6deg); z-index: 5;';
+                case 1: return 'width: 60%; height: 70%; top: 20%; left: 35%; transform: rotate(4deg); z-index: 6;';
+            }
+        case 3:
+            switch (index) {
+                case 0: return 'width: 55%; height: 65%; top: 18%; left: 22.5%; z-index: 10;'; // Center
+                case 1: return 'width: 45%; height: 50%; top: 5%; left: -2%; transform: rotate(-8deg); z-index: 9;'; // TL
+                case 2: return 'width: 45%; height: 50%; top: 45%; left: 57%; transform: rotate(7deg); z-index: 9;'; // BR
+            }
+        case 4:
+            switch (index) {
+                case 0: return 'width: 48%; height: 48%; top: 2%; left: 2%; transform: rotate(-5deg); z-index: 5;';
+                case 1: return 'width: 48%; height: 48%; top: 5%; left: 50%; transform: rotate(4deg); z-index: 6;';
+                case 2: return 'width: 48%; height: 48%; top: 50%; left: 5%; transform: rotate(6deg); z-index: 7;';
+                case 3: return 'width: 48%; height: 48%; top: 47%; left: 50%; transform: rotate(-4deg); z-index: 8;';
+            }
+        default:
+             return `display: none;`;
+    }
+}
+
+
+function rgbToHsl(r, g, b) {
+    r /= 255, g /= 255, b /= 255;
+    let max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h, s, l = (max + min) / 2;
+
+    if (max == min) { h = s = 0; } 
+    else {
+        let d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+            case g: h = (b - r) / d + 2; break;
+            case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+    }
+    return [h, s, l];
+}
+
+function hslToRgb(h, s, l) {
+    let r, g, b;
+    if (s == 0) { r = g = b = l; } 
+    else {
+        const hue2rgb = (p, q, t) => {
+            if (t < 0) t += 1;
+            if (t > 1) t -= 1;
+            if (t < 1/6) return p + (q - p) * 6 * t;
+            if (t < 1/2) return q;
+            if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+            return p;
+        }
+        let q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        let p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+    }
+    return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+function generateColorPalette(hex) {
+    const [r, g, b] = hex.match(/\w\w/g).map(x => parseInt(x, 16));
+    let [h, s, l] = rgbToHsl(r, g, b);
+    const [bg_r, bg_g, bg_b] = hslToRgb(h, s * 0.7, 0.96);
+    const bg = `rgb(${bg_r},${bg_g},${bg_b})`;
+    const [title_r, title_g, title_b] = hslToRgb(h, s, 0.2);
+    const title = `rgb(${title_r},${title_g},${title_b})`;
+    const [text_r, text_g, text_b] = hslToRgb(h, s, 0.3);
+    const text = `rgb(${text_r},${text_g},${text_b})`;
+    const accent1 = `rgb(${r},${g},${b})`;
+    const [accent2_r, accent2_g, accent2_b] = hslToRgb(h, Math.min(1, s + 0.1), Math.max(0, l - 0.1));
+    const accent2 = `rgb(${accent2_r},${accent2_g},${accent2_b})`;
+    const commentBg = `rgba(255, 255, 255, 0.75)`;
+    return { accent1, accent2, bg, title, text, commentBg };
+}
+
+
+// ============== NEW EXPORT LOGIC ==============
+
+async function exportCurrentSlideAsImage() {
+    const slideElement = document.querySelector('#main-slide-view .main-slide-content');
+    if (!slideElement) {
+        console.error("No se encontró el elemento de la diapositiva para exportar.");
+        return null;
+    }
+    try {
+        const slideStyle = window.getComputedStyle(slideElement);
+        const slideBgColor = slideStyle.backgroundColor;
+        const canvas = await html2canvas(slideElement, {
+            useCORS: true, allowTaint: true, scale: 2,
+            backgroundColor: slideBgColor, logging: false
+        });
+        return canvas.toDataURL('image/jpeg', 0.9);
+    } catch (error) {
+        console.error("Error al renderizar la diapositiva con html2canvas:", error);
+        return null;
+    }
 }
 
 async function generarPPTX() {
     const pptx = new PptxGenJS();
-    
-    const colors = generateColorPalette(currentBaseColor);
-    const SLIDE_W = 10, SLIDE_H = 5.625, MARGIN = 0.4, TITLE_H = 0.8;
-    const COMMENT_AREA_H = 0.7, CONTENT_H = SLIDE_H - TITLE_H - MARGIN - COMMENT_AREA_H;
-    const CONTENT_W = SLIDE_W - MARGIN * 2, CONTENT_Y_START = TITLE_H, GAP = 0.15;
-
-    for (const slide of slides) {
-        if (slide.imagenes.length === 0) continue;
-        const pSlide = pptx.addSlide();
-
-        const backgroundImage = await createSlideBackground(slide);
-        pSlide.background = { data: backgroundImage };
-        
-        pSlide.addText(`${slide.actividad} – ${slide.grado}`, { 
-            x: MARGIN, y: 0.2, w: CONTENT_W, h: TITLE_H - 0.2, 
-            fontFace: 'Inter', fontSize: 24, color: colors.titleHex.substring(1), 
-            align: 'center', valign: 'middle',
-            fill: { color: 'FFFFFF', transparency: 20 } 
-        });
-
-        if (slide.aiComment) {
-            pSlide.addText(slide.aiComment, { 
-                x: MARGIN, y: SLIDE_H - MARGIN - (COMMENT_AREA_H - 0.1), w: CONTENT_W, h: COMMENT_AREA_H - 0.1, 
-                fontFace: 'Inter', fontSize: 11, color: colors.textHex.substring(1), 
-                align: 'left', italic: true, valign: 'top',
-                fill: { color: colors.commentBgHex, transparency: 15 }
-            });
-        }
-
-        const images = slide.imagenes;
-        let layouts = [];
-        switch (images.length) {
-            case 1: layouts.push({ x: MARGIN, y: CONTENT_Y_START, w: CONTENT_W, h: CONTENT_H }); break;
-            case 2: const w2 = (CONTENT_W - GAP) / 2; layouts.push({ x: MARGIN, y: CONTENT_Y_START, w: w2, h: CONTENT_H }); layouts.push({ x: MARGIN + w2 + GAP, y: CONTENT_Y_START, w: w2, h: CONTENT_H }); break;
-            case 3: const w3_main = CONTENT_W * 0.65 - GAP / 2; const w3_side = CONTENT_W * 0.35 - GAP / 2; const h3_side = (CONTENT_H - GAP) / 2; layouts.push({ x: MARGIN, y: CONTENT_Y_START, w: w3_main, h: CONTENT_H }); layouts.push({ x: MARGIN + w3_main + GAP, y: CONTENT_Y_START, w: w3_side, h: h3_side }); layouts.push({ x: MARGIN + w3_main + GAP, y: CONTENT_Y_START + h3_side + GAP, w: w3_side, h: h3_side }); break;
-            case 4: const w4 = (CONTENT_W - GAP) / 2; const h4 = (CONTENT_H - GAP) / 2; layouts.push({ x: MARGIN, y: CONTENT_Y_START, w: w4, h: h4 }); layouts.push({ x: MARGIN + w4 + GAP, y: CONTENT_Y_START, w: w4, h: h4 }); layouts.push({ x: MARGIN, y: CONTENT_Y_START + h4 + GAP, w: w4, h: h4 }); layouts.push({ x: MARGIN + w4 + GAP, y: CONTENT_Y_START + h4 + GAP, w: w4, h: h4 }); break;
-            default: const h5 = (CONTENT_H - GAP) / 2; const w5_top = (CONTENT_W - GAP) / 2; layouts.push({ x: MARGIN, y: CONTENT_Y_START, w: w5_top, h: h5 }); layouts.push({ x: MARGIN + w5_top + GAP, y: CONTENT_Y_START, w: w5_top, h: h5 }); const y5_bottom = CONTENT_Y_START + h5 + GAP; const w5_bottom = (CONTENT_W - GAP * 2) / 3; layouts.push({ x: MARGIN, y: y5_bottom, w: w5_bottom, h: h5 }); layouts.push({ x: MARGIN + w5_bottom + GAP, y: y5_bottom, w: w5_bottom, h: h5 }); layouts.push({ x: MARGIN + (w5_bottom + GAP) * 2, y: y5_bottom, w: w5_bottom, h: h5 }); break;
-        }
-        for (let i = 0; i < images.length; i++) {
-            if (!layouts[i]) continue;
-            const base64 = await fileToBase64(images[i]); 
-            pSlide.addImage({ data: base64, ...layouts[i], sizing: { type: 'contain', w: layouts[i].w, h: layouts[i].h, x: 0.5, y: 0.5 } });
+    pptx.layout = 'LAYOUT_16x9';
+    const originalSlideIndex = activeSlideIndex;
+    for (let i = 0; i < slides.length; i++) {
+        displaySlide(i);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const slideImageData = await exportCurrentSlideAsImage();
+        if (slideImageData) {
+            const pSlide = pptx.addSlide();
+            pSlide.addImage({ data: slideImageData, x: 0, y: 0, w: '100%', h: '100%' });
         }
     }
-    pptx.writeFile({ fileName: 'MiPresentacion.pptx' });
+    displaySlide(originalSlideIndex);
+    pptx.writeFile({ fileName: 'MiPresentacion_Assembler.pptx' });
 }
-
 
 async function generarPDF() {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({
-        orientation: 'landscape',
-        unit: 'px',
-        format: [1280, 720]
-    });
-
-    const colors = generateColorPalette(currentBaseColor);
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'px', format: [1280, 720] });
+    const originalSlideIndex = activeSlideIndex;
     for (let i = 0; i < slides.length; i++) {
-        const slide = slides[i];
-        if (i > 0) doc.addPage([1280, 720], 'landscape');
-        
-        const backgroundImage = await createSlideBackground(slide);
-        doc.addImage(backgroundImage, 'PNG', 0, 0, 1280, 720);
-
-        doc.setFont('Inter', 'bold');
-        doc.setFontSize(48);
-        doc.setTextColor(colors.titleHex);
-        doc.text(`${slide.actividad} – ${slide.grado}`, 1280 / 2, 80, { align: 'center' });
-
-        if (slide.aiComment) {
-            doc.setFont('Inter', 'italic'); doc.setFontSize(22);
-            doc.setTextColor(colors.textHex);
-            const splitComment = doc.splitTextToSize(slide.aiComment, 1280 - 100);
-            doc.text(splitComment, 50, 620);
-        }
-        
-        const images = slide.imagenes;
-        let layouts = [];
-        const CONTENT_W = 1280 - 100, CONTENT_H = 720 - 250, CONTENT_Y_START = 120, GAP = 20;
-
-        switch (images.length) {
-             case 1: layouts.push({ x: 50, y: CONTENT_Y_START, w: CONTENT_W, h: CONTENT_H }); break;
-            case 2: const w2 = (CONTENT_W - GAP) / 2; layouts.push({ x: 50, y: CONTENT_Y_START, w: w2, h: CONTENT_H }); layouts.push({ x: 50 + w2 + GAP, y: CONTENT_Y_START, w: w2, h: CONTENT_H }); break;
-            case 3: const w3_main = CONTENT_W * 0.65 - GAP / 2; const w3_side = CONTENT_W * 0.35 - GAP / 2; const h3_side = (CONTENT_H - GAP) / 2; layouts.push({ x: 50, y: CONTENT_Y_START, w: w3_main, h: CONTENT_H }); layouts.push({ x: 50 + w3_main + GAP, y: CONTENT_Y_START, w: w3_side, h: h3_side }); layouts.push({ x: 50 + w3_main + GAP, y: CONTENT_Y_START + h3_side + GAP, w: w3_side, h: h3_side }); break;
-            case 4: const w4 = (CONTENT_W - GAP) / 2; const h4 = (CONTENT_H - GAP) / 2; layouts.push({ x: 50, y: CONTENT_Y_START, w: w4, h: h4 }); layouts.push({ x: 50 + w4 + GAP, y: CONTENT_Y_START, w: w4, h: h4 }); layouts.push({ x: 50, y: CONTENT_Y_START + h4 + GAP, w: w4, h: h4 }); layouts.push({ x: 50 + w4 + GAP, y: CONTENT_Y_START + h4 + GAP, w: w4, h: h4 }); break;
-            default: const h5 = (CONTENT_H - GAP) / 2; const w5_top = (CONTENT_W - GAP) / 2; layouts.push({ x: 50, y: CONTENT_Y_START, w: w5_top, h: h5 }); layouts.push({ x: 50 + w5_top + GAP, y: CONTENT_Y_START, w: w5_top, h: h5 }); const y5_bottom = CONTENT_Y_START + h5 + GAP; const w5_bottom = (CONTENT_W - GAP * 2) / 3; layouts.push({ x: 50, y: y5_bottom, w: w5_bottom, h: h5 }); layouts.push({ x: 50 + w5_bottom + GAP, y: y5_bottom, w: w5_bottom, h: h5 }); layouts.push({ x: 50 + (w5_bottom + GAP) * 2, y: y5_bottom, w: w5_bottom, h: h5 }); break;
-        }
-
-        for(let j = 0; j < images.length; j++) {
-            if (!layouts[j]) continue;
-            
-            const layoutBox = layouts[j];
-            const imageFile = images[j];
-
-            const { width: imgWidth, height: imgHeight } = await getImageDimensions(imageFile);
-            const imgAspectRatio = imgWidth / imgHeight;
-            const boxAspectRatio = layoutBox.w / layoutBox.h;
-
-            let newWidth, newHeight;
-
-            if (imgAspectRatio > boxAspectRatio) {
-                newWidth = layoutBox.w;
-                newHeight = layoutBox.w / imgAspectRatio;
-            } else {
-                newHeight = layoutBox.h;
-                newWidth = layoutBox.h * imgAspectRatio;
-            }
-
-            const newX = layoutBox.x + (layoutBox.w - newWidth) / 2;
-            const newY = layoutBox.y + (layoutBox.h - newHeight) / 2;
-
-            const imgData = await fileToBase64(imageFile);
-            doc.addImage(imgData, 'JPEG', newX, newY, newWidth, newHeight);
+        displaySlide(i);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const slideImageData = await exportCurrentSlideAsImage();
+        if (slideImageData) {
+            if (i > 0) doc.addPage([1280, 720], 'landscape');
+            doc.addImage(slideImageData, 'JPEG', 0, 0, 1280, 720);
         }
     }
-
-    doc.save('MiPresentacion.pdf');
+    displaySlide(originalSlideIndex);
+    doc.save('MiPresentacion_Assembler.pdf');
 }

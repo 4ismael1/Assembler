@@ -11,7 +11,7 @@
 
   <link rel="stylesheet" href="styles.css">
   
-  <!-- **NUEVO:** Librerías para renderizar y exportar -->
+  <!-- Librerías para renderizar y exportar -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -96,9 +96,17 @@
                 <label for="themeColorPicker">Color Principal:</label>
                 <input type="color" id="themeColorPicker" value="#3498db">
             </div>
+            <!-- NEW: Layout Style Toggle -->
+            <div class="layout-toggle-container">
+                <label for="layoutToggle" id="layoutToggleLabel">Collage Superpuesto</label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="layoutToggle" checked>
+                    <span class="slider"></span>
+                </div>
+            </div>
             <button id="restyleBtn">
                 <span class="icon" data-feather="refresh-cw"></span> 
-                ReStyle Diapositiva
+                Re-Estilizar Fondo
             </button>
         </div> 
         <div id="slide-thumbnails"></div>
@@ -124,7 +132,7 @@
     <p id="loader-text">Procesando...</p>
   </div>
   
-  <!-- **NUEVO:** Modal para selección de formato de exportación -->
+  <!-- Modal para selección de formato de exportación -->
   <div id="export-modal" class="modal-overlay">
       <div class="modal-content">
           <h4>Elige un formato de exportación</h4>
