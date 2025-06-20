@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assembler</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+  
+  <!-- **NUEVO:** Librerías para renderizar y exportar -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <div id="credit-toast">+10 Créditos Añadidos</div>
+
+  <header>
+    <h1>Assembler</h1>
+    <!-- User profile section - hidden by default -->
+    <div id="user-profile" class="hidden">
+      <div id="credit-counter">
+        <span class="icon" data-feather="database"></span>
+        <span>Créditos: <b id="user-credits">0</b></span>
+      </div>
+      <button id="buyCreditsBtn">
+        <span class="icon" data-feather="plus-circle"></span>
+        Comprar Créditos
+      </button>
+      <img id="user-photo" src="" alt="Foto de perfil">
+      <span id="user-name"></span>
+      <button id="logoutBtn">
+        <span class="icon" data-feather="log-out"></span>
+        Salir
+      </button>
+    </div>
+  </header>
+
+  <!-- Login container -->
+  <div id="login-container">
+    <div class="app-description">
+        <h3>Tu Asistente Inteligente para Presentaciones</h3>
+        <p>Sube las fotos de tus actividades escolares y deja que Assembler cree presentaciones impactantes por ti. Ahorra tiempo y sorprende a todos con collages dinámicos y comentarios generados por IA.</p>
+        <ul>
+            <li><span data-feather="check-circle" class="li-icon"></span>Crea presentaciones en segundos.</li>
+            <li><span data-feather="check-circle" class="li-icon"></span>Organiza tus imágenes automáticamente.</li>
+            <li><span data-feather="check-circle" class="li-icon"></span>Genera descripciones con IA.</li>
+        </ul>
+    </div>
+    <div class="login-box">
+      <h2>Comienza Ahora</h2>
+      <p>Inicia sesión para potenciar tus proyectos.</p>
+      <button id="loginBtn">
+          <svg aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" class="svg-inline--fa fa-google fa-w-16" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512" style="width: 20px; height: 20px; margin-right: 10px;"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 21.2 174 58.9l-65.2 64.2c-28.1-26.7-63.9-42.5-108.8-42.5-85.5 0-155.2 67.5-155.2 150.9s69.7 150.9 155.2 150.9c99.3 0 132.3-76.3 135.8-112.4H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
+          Iniciar Sesión con Google
+      </button>
+    </div>
+  </div>
+  
+  <!-- Main content - hidden by default -->
+  <main id="app-content" class="hidden">
+    <label for="folderInput" class="folder-label" id="folder-container">
+        <span class="icon upload-icon" data-feather="upload-cloud"></span>
+        <span id="folder-prompt">Haz clic aquí para seleccionar una carpeta</span>
+        <div id="folder-preview" class="hidden"></div>
+        <input type="file" id="folderInput" webkitdirectory directory multiple>
+    </label>
+
+    <section id="config" class="centered-container">
+      <button id="startBtn" class="hidden">
+        <span class="icon" data-feather="play-circle"></span>
+        Crear tu presentación
+      </button>
+    </section>
+    
+    <!-- New Presentation Editor View -->
+    <div id="presentation-editor" class="hidden">
+      <aside id="slide-sidebar">
+        <div id="ai-bulk-panel">
+          <h4>Potenciar con IA</h4>
+          <div class="select-all-container">
+            <input type="checkbox" id="selectAllCheckbox">
+            <label for="selectAllCheckbox">Seleccionar todo</label>
+          </div>
+          <p>Coste: <b id="ai-cost">0</b> créditos</p>
+          <button id="bulk-ai-btn">
+            <span class="icon" data-feather="star"></span> Potenciar Selección
+          </button>
+        </div>
+        <div id="theme-customizer-panel">
+            <h4>Personaliza tu Tema</h4>
+            <div class="color-picker-container">
+                <label for="themeColorPicker">Color Principal:</label>
+                <input type="color" id="themeColorPicker" value="#3498db">
+            </div>
+            <button id="restyleBtn">
+                <span class="icon" data-feather="refresh-cw"></span> 
+                ReStyle Diapositiva
+            </button>
+        </div> 
+        <div id="slide-thumbnails"></div>
+      </aside>
+      <section id="main-slide-view"></section>
+    </div>
+
+  </main>
+
+  <footer id="app-footer" class="hidden">
+    <button id="resetBtn" class="hidden">
+        <span class="icon" data-feather="refresh-cw"></span>
+        Empezar de Nuevo
+    </button>
+    <button id="downloadBtn" class="hidden">
+        <span class="icon" data-feather="download"></span>
+        Descargar Presentación
+    </button>
+  </footer>
+
+  <div id="loader" class="loader-overlay hidden">
+    <div class="spinner"></div>
+    <p id="loader-text">Procesando...</p>
+  </div>
+  
+  <!-- **NUEVO:** Modal para selección de formato de exportación -->
+  <div id="export-modal" class="modal-overlay">
+      <div class="modal-content">
+          <h4>Elige un formato de exportación</h4>
+          <div class="modal-buttons">
+              <button id="export-pptx-btn">
+                  <span class="icon" data-feather="file-text"></span> PowerPoint (.pptx)
+              </button>
+              <button id="export-pdf-btn">
+                  <span class="icon" data-feather="file"></span> PDF (.pdf)
+              </button>
+          </div>
+          <button id="close-modal-btn" class="close-btn">
+              <span class="icon" data-feather="x"></span>
+          </button>
+      </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+  
+  <!-- Other scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/gitbrent/pptxgenjs/dist/pptxgen.bundle.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
