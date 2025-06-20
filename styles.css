@@ -115,6 +115,8 @@ button:disabled { background-color: var(--text-light-color); cursor: not-allowed
 #loginBtn:hover { background-color: #f8f9fa; border-color: #d3d9e0; }
 #buyCreditsBtn { font-size: 0.9rem; padding: 0.6rem 1.2rem; background-color: #1e88e5; }
 #buyCreditsBtn:hover { background-color: #1565c0; }
+#themeToggleBtn { background-color: transparent; padding: 0.5rem; box-shadow: none; }
+#themeToggleBtn:hover { background-color: var(--bg-color); }
 #bulk-ai-btn { background: linear-gradient(45deg, var(--ai-color), #c039b1); }
 
 /* --- PRESENTATION EDITOR STYLES --- */
@@ -193,7 +195,8 @@ input:checked + .slider:before { transform: translateX(22px); }
     border: 3px solid white;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
     border-radius: 12px;
-    overflow: hidden; 
+    background-color: var(--surface-color);
+    overflow: hidden;
     transition: transform 0.3s ease-out, box-shadow 0.3s ease-out;
     cursor: grab;
 }
@@ -201,7 +204,8 @@ input:checked + .slider:before { transform: translateX(22px); }
     transform: scale(1.05) rotate(0deg) !important;
     z-index: 100 !important;
 }
-.imagenes.layout-overlap .image-container.dragging {
+.imagenes.layout-overlap .image-container.dragging,
+.imagenes.layout-grid .image-container.dragging {
     cursor: grabbing;
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
     z-index: 101 !important;
@@ -209,17 +213,21 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 /* === GRID LAYOUT === */
 .imagenes.layout-grid {
+    position: relative;
     display: grid;
     gap: 1rem;
     height: 100%;
 }
 .imagenes.layout-grid .image-container {
-    position: relative; /* Override absolute */
+    position: relative; /* default for grid */
     border-radius: 8px;
     border: 2px solid white;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    background-color: var(--surface-color);
     overflow: hidden;
-    cursor: default; /* No moving the container in grid mode */
+}
+.imagenes.layout-grid .image-container[style*="position: absolute"] {
+    cursor: grab;
 }
 /* Specific grid structures */
 .imagenes.layout-grid.count-1 { grid-template-columns: 1fr; }
@@ -234,7 +242,7 @@ input:checked + .slider:before { transform: translateX(22px); }
 .image-container img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     display: block;
     cursor: move;
     pointer-events: all;
@@ -293,6 +301,12 @@ input:checked + .slider:before { transform: translateX(22px); }
 .close-btn { position: absolute; top: 10px; right: 10px; background: transparent; border: none; box-shadow: none; padding: 0.5rem; }
 .close-btn:hover { background-color: var(--bg-color); }
 
+/* Credit modal form */
+.credit-form { text-align: left; margin-bottom: 1rem; }
+.credit-form label { font-weight: 500; display: block; margin-bottom: 0.5rem; }
+.credit-form input[type="number"] { width: 100%; padding: 0.5rem; margin-bottom: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; }
+.payment-methods { margin-bottom: 0.75rem; }
+
 
 /* Utilidades */
 .hidden { display: none !important; }
@@ -302,3 +316,13 @@ input:checked + .slider:before { transform: translateX(22px); }
 .spinner { width: 60px; height: 60px; border: 6px solid var(--border-color); border-top-color: var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite; }
 #loader-text { margin-top: 1.5rem; font-weight: 500; font-size: 1.1rem; color: var(--text-color); }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Dark theme variables */
+body.dark {
+  --bg-color: #181818;
+  --surface-color: #222;
+  --text-color: #e0e0e0;
+  --text-light-color: #b0b0b0;
+  --border-color: #444;
+  --shadow-color: rgba(0,0,0,0.6);
+}

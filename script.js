@@ -20,6 +20,7 @@ let slides = [];
 let activeFiles = [];
 let activeSlideIndex = 0;
 let currentBaseColor = '#3498db'; // Default color
+const CREDIT_PRICE = 0.5; // price per credit in chosen currency
 
 // ============== DOM Elements ==============
 const loginBtn = document.getElementById('loginBtn');
@@ -43,6 +44,13 @@ const exportPptxBtn = document.getElementById('export-pptx-btn');
 const exportPdfBtn = document.getElementById('export-pdf-btn');
 const closeModalBtn = document.getElementById('close-modal-btn');
 const buyCreditsBtn = document.getElementById('buyCreditsBtn');
+const themeToggleBtn = document.getElementById('themeToggleBtn');
+const creditsModal = document.getElementById('credits-modal');
+const creditAmountInput = document.getElementById('creditAmount');
+const creditTotalDisplay = document.getElementById('creditTotal');
+const creditPriceDisplay = document.getElementById('creditPriceDisplay');
+const confirmBuyCreditsBtn = document.getElementById('confirm-buy-credits-btn');
+const closeCreditsModalBtn = document.getElementById('close-credits-modal-btn');
 const layoutToggle = document.getElementById('layoutToggle');
 const layoutToggleLabel = document.getElementById('layoutToggleLabel');
 
@@ -50,6 +58,11 @@ const layoutToggleLabel = document.getElementById('layoutToggleLabel');
 document.addEventListener('DOMContentLoaded', () => {
     updateTheme(currentBaseColor);
     setupInteractionListeners();
+
+    themeToggleBtn.innerHTML = `<span class="icon" data-feather="moon"></span>`;
+    creditPriceDisplay.textContent = CREDIT_PRICE.toFixed(2);
+    updateCreditTotal();
+    feather.replace();
 });
 
 // ============== AUTHENTICATION LOGIC ==============
@@ -364,26 +377,56 @@ bulkAiBtn.addEventListener('click', async () => {
     displaySlide(activeSlideIndex);
 });
 
-buyCreditsBtn.addEventListener('click', async () => {
+buyCreditsBtn.addEventListener('click', () => {
+    creditAmountInput.value = 10;
+    updateCreditTotal();
+    creditsModal.classList.add('show');
+});
+
+closeCreditsModalBtn.addEventListener('click', () => {
+    creditsModal.classList.remove('show');
+});
+
+themeToggleBtn.addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+    const icon = document.body.classList.contains('dark') ? 'sun' : 'moon';
+    themeToggleBtn.innerHTML = `<span class="icon" data-feather="${icon}"></span>`;
+    feather.replace();
+});
+
+creditAmountInput.addEventListener('input', updateCreditTotal);
+
+function updateCreditTotal() {
+    const qty = parseInt(creditAmountInput.value, 10) || 0;
+    const total = qty * CREDIT_PRICE;
+    creditTotalDisplay.textContent = total.toFixed(2);
+}
+
+confirmBuyCreditsBtn.addEventListener('click', async () => {
     const user = auth.currentUser;
     if (!user) {
-        alert("Debes iniciar sesión para añadir créditos.");
+        alert('Debes iniciar sesión para añadir créditos.');
+        creditsModal.classList.remove('show');
         return;
     }
+
+    const qty = parseInt(creditAmountInput.value, 10) || 0;
+    if (qty <= 0) return;
 
     try {
         const userRef = db.collection('users').doc(user.uid);
         await userRef.update({
-            credits: firebase.firestore.FieldValue.increment(10)
+            credits: firebase.firestore.FieldValue.increment(qty)
         });
-        
+
         const creditToast = document.getElementById('credit-toast');
-        creditToast.textContent = "+10 Créditos añadidos!";
+        creditToast.textContent = `+${qty} Créditos añadidos!`;
         creditToast.classList.add('show');
         setTimeout(() => creditToast.classList.remove('show'), 3000);
+        creditsModal.classList.remove('show');
     } catch (error) {
-        console.error("Error adding credits:", error);
-        alert("Hubo un problema al añadir los créditos.");
+        console.error('Error adding credits:', error);
+        alert('Hubo un problema al añadir los créditos.');
     }
 });
 
@@ -519,22 +562,30 @@ function onDragStart(e) {
     const imageContainer = e.target.closest('.image-container');
     if (!imageContainer) return;
 
-    if (e.target.tagName === 'IMG') {
+    if (e.target.tagName === 'IMG' && e.shiftKey) {
         e.preventDefault();
         activeDrag.isPanning = true;
         activeDrag.element = e.target;
-        
+
         const computedStyle = window.getComputedStyle(e.target);
         const [x, y] = computedStyle.objectPosition.split(' ').map(v => parseFloat(v));
         activeDrag.initialObjPosX = x;
         activeDrag.initialObjPosY = y;
     } else {
-        // Only allow dragging the container in 'overlap' mode
-        if (slides[activeSlideIndex].layoutStyle !== 'overlap') return;
-        
         e.preventDefault();
         activeDrag.isPanning = false;
         activeDrag.element = imageContainer;
+
+        // if container is positioned by grid, convert to absolute for free movement
+        if (!imageContainer.style.position || imageContainer.style.position !== 'absolute') {
+            const rect = imageContainer.getBoundingClientRect();
+            const parentRect = imageContainer.parentElement.getBoundingClientRect();
+            imageContainer.style.position = 'absolute';
+            imageContainer.style.top = `${rect.top - parentRect.top}px`;
+            imageContainer.style.left = `${rect.left - parentRect.left}px`;
+            imageContainer.style.width = `${rect.width}px`;
+            imageContainer.style.height = `${rect.height}px`;
+        }
 
         const computedStyle = window.getComputedStyle(imageContainer);
         activeDrag.initialLeft = parseFloat(computedStyle.left);
@@ -624,7 +675,7 @@ function generateCollageLayout(slide, slideIndex) {
 
     const imageElements = images.map((file, imgIndex) => {
         const positionData = slide.positions?.[imgIndex] || {};
-        const style = (layoutStyle === 'overlap' && positionData.containerStyle) ? positionData.containerStyle : getCollageStyle(slide.imagenes.length, imgIndex, layoutStyle);
+        const style = positionData.containerStyle ? positionData.containerStyle : getCollageStyle(slide.imagenes.length, imgIndex, layoutStyle);
         const objectPosition = positionData.objectPosition || '50% 50%';
 
         return `
