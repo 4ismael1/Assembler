@@ -201,7 +201,8 @@ input:checked + .slider:before { transform: translateX(22px); }
     transform: scale(1.05) rotate(0deg) !important;
     z-index: 100 !important;
 }
-.imagenes.layout-overlap .image-container.dragging {
+.imagenes.layout-overlap .image-container.dragging,
+.imagenes.layout-grid .image-container.dragging {
     cursor: grabbing;
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
     z-index: 101 !important;
@@ -209,17 +210,20 @@ input:checked + .slider:before { transform: translateX(22px); }
 
 /* === GRID LAYOUT === */
 .imagenes.layout-grid {
+    position: relative;
     display: grid;
     gap: 1rem;
     height: 100%;
 }
 .imagenes.layout-grid .image-container {
-    position: relative; /* Override absolute */
+    position: relative; /* default for grid */
     border-radius: 8px;
     border: 2px solid white;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     overflow: hidden;
-    cursor: default; /* No moving the container in grid mode */
+}
+.imagenes.layout-grid .image-container[style*="position: absolute"] {
+    cursor: grab;
 }
 /* Specific grid structures */
 .imagenes.layout-grid.count-1 { grid-template-columns: 1fr; }
@@ -292,6 +296,12 @@ input:checked + .slider:before { transform: translateX(22px); }
 .modal-buttons button { flex-grow: 1; }
 .close-btn { position: absolute; top: 10px; right: 10px; background: transparent; border: none; box-shadow: none; padding: 0.5rem; }
 .close-btn:hover { background-color: var(--bg-color); }
+
+/* Credit modal form */
+.credit-form { text-align: left; margin-bottom: 1rem; }
+.credit-form label { font-weight: 500; display: block; margin-bottom: 0.5rem; }
+.credit-form input[type="number"] { width: 100%; padding: 0.5rem; margin-bottom: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; }
+.payment-methods { margin-bottom: 0.75rem; }
 
 
 /* Utilidades */

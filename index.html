@@ -59,6 +59,29 @@
       </button>
     </div>
   </div>
+
+  <!-- Modal para compra de créditos -->
+  <div id="credits-modal" class="modal-overlay">
+      <div class="modal-content">
+          <h4>Comprar Créditos</h4>
+          <div class="credit-form">
+              <label for="creditAmount">Cantidad de créditos:</label>
+              <input type="number" id="creditAmount" min="1" value="10">
+              <p>Precio por crédito: <b id="creditPriceDisplay"></b></p>
+              <div class="payment-methods">
+                  <label><input type="radio" name="paymentMethod" value="card" checked> Tarjeta de crédito</label><br>
+                  <label><input type="radio" name="paymentMethod" value="paypal"> PayPal</label>
+              </div>
+              <p>Total a pagar: <b id="creditTotal"></b></p>
+          </div>
+          <div class="modal-buttons">
+              <button id="confirm-buy-credits-btn">Confirmar</button>
+          </div>
+          <button id="close-credits-modal-btn" class="close-btn">
+              <span class="icon" data-feather="x"></span>
+          </button>
+      </div>
+  </div>
   
   <!-- Main content - hidden by default -->
   <main id="app-content" class="hidden">
